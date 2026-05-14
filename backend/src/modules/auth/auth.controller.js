@@ -7,7 +7,8 @@ import { signupSchema, verifySignupOTPSchema, loginSchema } from "../users/user.
 import {
   signupService,
   verifySignupOTPService,
-  loginService
+  loginService,
+  refreshAccessTokenService
 } from "./auth.service.js";
 
 /*
@@ -113,3 +114,28 @@ export const loginController = asyncHandler(
     res.status(200).json(result);
   }
 );
+
+/*
+|--------------------------------------------------------------------------
+| Refresh Access Token Controller
+|--------------------------------------------------------------------------
+*/
+
+export const refreshAccessTokenController =
+  asyncHandler(async (req, res) => {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      throw new AppError(
+        "Refresh token is required",
+        400
+      );
+    }
+
+    const result =
+      await refreshAccessTokenService(
+        refreshToken
+      );
+
+    res.status(200).json(result);
+  });

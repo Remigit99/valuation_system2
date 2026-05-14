@@ -4,7 +4,8 @@ import express from "express";
 import {
   signupController,
   verifySignupOTPController,
-  loginController
+  loginController,
+  refreshAccessTokenController
 } from "./auth.controller.js";
 
 const router = express.Router();
@@ -18,4 +19,5 @@ const router = express.Router();
 router.post("/signup", signupController);
 router.post("/verify-signup-otp", verifySignupOTPController);
 router.post("/login", loginController);
+router.post("/refresh-access-token", refreshAccessTokenController);
 export default router;

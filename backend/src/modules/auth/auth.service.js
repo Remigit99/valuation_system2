@@ -12,7 +12,12 @@ import { verifyPassword } from "../../utils/password.js";
 import {
   generateAccessToken,
   generateRefreshToken,
+  verifyRefreshToken
 } from "../../utils/token.js";
+
+import { v7 as uuidv7 } from "uuid";
+
+import { createSession, getSession } from "./session.service.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -221,6 +226,25 @@ export const loginService = async (payload) => {
     );
   }
 
+
+  /*
+|--------------------------------------------------------------------------
+| Create Session ID
+|--------------------------------------------------------------------------
+*/
+
+const sessionId = uuidv7();
+
+
+await createSession({
+  sessionId,
+  userId: user._id,
+
+  userAgent: "unknown",
+  ipAddress: "unknown",
+});
+
+
   /*
   |--------------------------------------------------------------------------
   | Generate Tokens
@@ -230,11 +254,13 @@ export const loginService = async (payload) => {
   const accessToken = generateAccessToken({
     userId: user._id,
     role: user.role,
+    sessionId,
   });
 
   const refreshToken = generateRefreshToken({
     userId: user._id,
     role: user.role,
+    sessionId,
   });
 
   /*
@@ -269,5 +295,60 @@ export const loginService = async (payload) => {
         role: user.role,
       },
     },
+  };
+};
+
+
+/*
+|--------------------------------------------------------------------------
+| Refresh Access Token Service
+|--------------------------------------------------------------------------
+*/
+
+export const refreshAccessTokenService = async (
+  refreshToken
+) => {
+  /*
+  |--------------------------------------------------------------------------
+  | Verify Refresh Token
+  |--------------------------------------------------------------------------
+  */
+
+  const decoded =
+    verifyRefreshToken(refreshToken);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Check Session
+  |--------------------------------------------------------------------------
+  */
+
+  const session = await getSession(
+    decoded.sessionId
+  );
+
+  if (!session) {
+    throw new AppError(
+      "Session expired or invalid",
+      401
+    );
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Generate New Access Token
+  |--------------------------------------------------------------------------
+  */
+
+  const newAccessToken =
+    generateAccessToken({
+      userId: decoded.userId,
+      role: decoded.role,
+      sessionId: decoded.sessionId,
+    });
+
+  return {
+    success: true,
+    accessToken: newAccessToken,
   };
 };
