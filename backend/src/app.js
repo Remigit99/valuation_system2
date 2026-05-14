@@ -5,6 +5,10 @@ import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
+import errorMiddleware from "./middleware/errorMiddleware.js";
+import AppError from "./utils/errors/AppError.js";
+import asyncHandler from "./utils/errors/asyncHandler.js";
+
 
 dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
 
@@ -81,5 +85,21 @@ app.use((req, res) => {
     message: "Route not found",
   });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Global Error Handling Middleware
+|--------------------------------------------------------------------------*/
+app.get(
+  "/api/v1/error",
+  asyncHandler(async (req, res) => {
+    throw new AppError("Test error route", 400);
+  })
+);
+
+app.use(AppError);
+app.use(asyncHandler);
+app.use(errorMiddleware);
+
 
 export default app;
