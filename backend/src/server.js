@@ -4,6 +4,7 @@ import app from "./app.js";
 import env from "./config/env.js";
 import connectDB from "./config/db.js";
 // import { connectRedis } from "./config/redis.js";
+// import User from "./modules/users/user.model.js";
 
 const PORT = env.PORT || 5000;
 
@@ -16,6 +17,8 @@ await connectDB();
 |--------------------------------------------------------------------------
 | Start Server
 |--------------------------------------------------------------------------*/
+
+// console.log(User.modelName, "model loaded"); // Debugging line to confirm model is loaded
 
 app.listen(PORT, () => {  
     console.log(`Server is running on port ${PORT}`);  
