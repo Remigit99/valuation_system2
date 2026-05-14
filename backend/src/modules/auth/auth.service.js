@@ -4,6 +4,8 @@ import AppError from "../../utils/errors/AppError.js";
 
 import { hashPassword } from "../../utils/password.js";
 
+import { sendSignupOTP } from "../otp/otp.service.js";
+
 /*
 |--------------------------------------------------------------------------
 | Signup Service
@@ -76,6 +78,8 @@ export const signupService = async (payload) => {
     phone,
     passwordHash,
   });
+
+  await sendSignupOTP(phone);
 
   return {
     success: true,
