@@ -6,7 +6,9 @@ import {
   verifySignupOTPController,
   loginController,
   refreshAccessTokenController,
-  logoutController
+  logoutController,
+  verifyCRMLoginOTPController,
+  requestCRMLoginOTPController
 } from "./auth.controller.js";
 
 const router = express.Router();
@@ -22,4 +24,6 @@ router.post("/verify-signup-otp", verifySignupOTPController);
 router.post("/login", loginController);
 router.post("/refresh-access-token", refreshAccessTokenController);
 router.post("/logout", logoutController);
+router.post("/verify-crm-login-otp", verifyCRMLoginOTPController);
+router.post("/request-crm-login-otp", requestCRMLoginOTPController);
 export default router;

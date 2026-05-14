@@ -12,6 +12,8 @@ import {
   loginService,
   refreshAccessTokenService,
   logoutService,
+  verifyCRMLoginOTPService,
+  requestCRMLoginOTPService
 } from "./auth.service.js";
 
 import {
@@ -175,3 +177,94 @@ export const logoutController = asyncHandler(async (req, res) => {
   .status(200)
   .json(result);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Verify CRM Login OTP Controller
+|--------------------------------------------------------------------------
+*/
+
+export const verifyCRMLoginOTPController =
+  asyncHandler(async (req, res) => {
+    /*
+    |--------------------------------------------------------------------------
+    | Validate Request Body
+    |--------------------------------------------------------------------------
+    */
+
+    const validatedData =
+      verifyCRMLoginOTPSchema.parse(
+        req.body
+      );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Verify Login OTP
+    |--------------------------------------------------------------------------
+    */
+
+    const result =
+      await verifyCRMLoginOTPService(
+        validatedData
+      );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Set Secure Cookies
+    |--------------------------------------------------------------------------
+    */
+
+    res
+      .cookie(
+        "accessToken",
+        result.data.accessToken,
+        accessTokenCookieOptions
+      )
+      .cookie(
+        "refreshToken",
+        result.data.refreshToken,
+        refreshTokenCookieOptions
+      )
+      .status(200)
+      .json({
+        success: true,
+        message: result.message,
+
+        data: {
+          user: result.data.user,
+        },
+      });
+  });
+
+  /*
+|--------------------------------------------------------------------------
+| Request CRM Login OTP Controller
+|--------------------------------------------------------------------------
+*/
+
+export const requestCRMLoginOTPController =
+  asyncHandler(async (req, res) => {
+    /*
+    |--------------------------------------------------------------------------
+    | Validate Request Body
+    |--------------------------------------------------------------------------
+    */
+
+    const validatedData =
+      requestCRMLoginOTPSchema.parse(
+        req.body
+      );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Request OTP
+    |--------------------------------------------------------------------------
+    */
+
+    const result =
+      await requestCRMLoginOTPService(
+        validatedData
+      );
+
+    res.status(200).json(result);
+  });

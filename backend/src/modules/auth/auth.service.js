@@ -509,3 +509,153 @@ export const requestCRMLoginOTPService =
       challengeId,
     };
   };
+
+
+  /*
+|--------------------------------------------------------------------------
+| Verify CRM Login OTP Service
+|--------------------------------------------------------------------------
+*/
+
+export const verifyCRMLoginOTPService =
+  async ({ challengeId, otp }) => {
+    /*
+    |--------------------------------------------------------------------------
+    | Find Login Challenge
+    |--------------------------------------------------------------------------
+    */
+
+    const challenge = await redisClient.get(
+      `crm-login:${challengeId}`
+    );
+
+    if (!challenge) {
+      throw new AppError(
+        "Login session expired or invalid",
+        401
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Parse Challenge
+    |--------------------------------------------------------------------------
+    */
+
+    const parsedChallenge =
+      JSON.parse(challenge);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Find User
+    |--------------------------------------------------------------------------
+    */
+
+    const user = await User.findById(
+      parsedChallenge.userId
+    );
+
+    if (!user) {
+      throw new AppError(
+        "User not found",
+        404
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Verify OTP
+    |--------------------------------------------------------------------------
+    */
+
+    await verifySignupOTP(
+      user.phone,
+      otp
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Create Session ID
+    |--------------------------------------------------------------------------
+    */
+
+    const sessionId = uuidv4();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Create Redis Session
+    |--------------------------------------------------------------------------
+    */
+
+    await createSession({
+      sessionId,
+      userId: user._id,
+
+      userAgent: "unknown",
+      ipAddress: "unknown",
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Generate Tokens
+    |--------------------------------------------------------------------------
+    */
+
+    const accessToken =
+      generateAccessToken({
+        userId: user._id,
+        role: user.role,
+        sessionId,
+      });
+
+    const refreshToken =
+      generateRefreshToken({
+        userId: user._id,
+        role: user.role,
+        sessionId,
+      });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Delete Login Challenge
+    |--------------------------------------------------------------------------
+    */
+
+    await redisClient.del(
+      `crm-login:${challengeId}`
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Update Last Login
+    |--------------------------------------------------------------------------
+    */
+
+    user.lastLoginAt = new Date();
+
+    await user.save();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Response
+    |--------------------------------------------------------------------------
+    */
+
+    return {
+      success: true,
+      message: "Login successful",
+
+      data: {
+        accessToken,
+        refreshToken,
+
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          username: user.username,
+          role: user.role,
+        },
+      },
+    };
+  };
