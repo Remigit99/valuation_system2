@@ -6,6 +6,13 @@ import { z } from "zod";
 |--------------------------------------------------------------------------
 */
 
+// console.log("--- DEBUGGING PROCESS.ENV ---");
+// console.log("MONGO_URI exists:", !!process.env.MONGO_URI);
+// console.log("JWT_ACCESS_SECRET value:", process.env.JWT_ACCESS_SECRET);
+// console.log("-----------------------------");
+
+
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production"]).default("development"),
 
@@ -13,11 +20,11 @@ const envSchema = z.object({
 
   MONGO_URI: z.string().min(1),
 
-  REDIS_URL: z.string().min(1).optional(),
+  REDIS_URL: z.string().min(1),
 
-  JWT_ACCESS_SECRET: z.string().min(32).optional(),
+  JWT_ACCESS_SECRET: z.string().min(32),
 
-  JWT_REFRESH_SECRET: z.string().min(32).optional(),
+  JWT_REFRESH_SECRET: z.string().min(32),
 });
 
 
