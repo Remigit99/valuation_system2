@@ -9,6 +9,7 @@ import errorMiddleware from "./middleware/errorMiddleware.js";
 import AppError from "./utils/errors/AppError.js";
 import asyncHandler from "./utils/errors/asyncHandler.js";
 
+import authRoutes from "./modules/auth/auth.routes.js";
 
 dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
 
@@ -64,6 +65,18 @@ app.use(cookieParser());
 |--------------------------------------------------------------------------
 */
 
+
+/*--------------------------------------------------------------------------
+| Mounts route handlers for different modules.
+|--------------------------------------------------------------------------
+*/
+
+app.use("/api/v1/auth", authRoutes);
+
+
+
+
+
 app.get("/api/v1/health", (req, res) => {
   res.status(200).json({
     success: true,
@@ -71,9 +84,16 @@ app.get("/api/v1/health", (req, res) => {
   });
 });
 
+
+
+
+
+
 /*
 |--------------------------------------------------------------------------
 | 404 Route Handler
+
+----------------------
 |--------------------------------------------------------------------------
 | Handles unknown routes.
 |--------------------------------------------------------------------------
