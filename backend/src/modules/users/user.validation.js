@@ -30,3 +30,29 @@ export const signupSchema = z.object({
     .regex(/[0-9]/)
     .regex(/[^A-Za-z0-9]/),
 });
+
+
+
+export const verifySignupOTPSchema = z.object({
+  phone: z
+    .string()
+    .min(10)
+    .max(20),
+
+  otp: z
+    .string()
+    .length(6),
+});
+
+
+
+export const loginSchema = z.object({
+  username: z
+    .string()
+    .min(3)
+    .max(30),
+
+  password: z
+    .string()
+    .min(1),
+});

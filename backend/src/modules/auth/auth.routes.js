@@ -1,6 +1,11 @@
 import express from "express";
 
-import { signupController } from "./auth.controller.js";
+
+import {
+  signupController,
+  verifySignupOTPController,
+  loginController
+} from "./auth.controller.js";
 
 const router = express.Router();
 
@@ -11,5 +16,6 @@ const router = express.Router();
 */
 
 router.post("/signup", signupController);
-
+router.post("/verify-signup-otp", verifySignupOTPController);
+router.post("/login", loginController);
 export default router;

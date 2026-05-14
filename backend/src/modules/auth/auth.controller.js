@@ -1,8 +1,14 @@
 import asyncHandler from "../../utils/errors/asyncHandler.js";
 
-import { signupSchema } from "../users/user.validation.js";
+import { signupSchema, verifySignupOTPSchema, loginSchema } from "../users/user.validation.js";
 
-import { signupService } from "./auth.service.js";
+
+
+import {
+  signupService,
+  verifySignupOTPService,
+  loginService
+} from "./auth.service.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -35,3 +41,75 @@ export const signupController = asyncHandler(async (req, res) => {
 
   res.status(201).json(result);
 });
+
+
+/*
+|--------------------------------------------------------------------------
+| Verify Signup OTP Controller
+|--------------------------------------------------------------------------
+*/
+
+export const verifySignupOTPController = asyncHandler(
+  async (req, res) => {
+    /*
+    |--------------------------------------------------------------------------
+    | Validate Request Body
+    |--------------------------------------------------------------------------
+    */
+
+    const validatedData =
+      verifySignupOTPSchema.parse(req.body);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Verify OTP
+    |--------------------------------------------------------------------------
+    */
+
+    const result =
+      await verifySignupOTPService(validatedData);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Response
+    |--------------------------------------------------------------------------
+    */
+
+    res.status(200).json(result);
+  }
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| Login Controller
+|--------------------------------------------------------------------------
+*/
+
+export const loginController = asyncHandler(
+  async (req, res) => {
+    /*
+    |--------------------------------------------------------------------------
+    | Validate Request Body
+    |--------------------------------------------------------------------------
+    */
+
+    const validatedData = loginSchema.parse(req.body);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Login
+    |--------------------------------------------------------------------------
+    */
+
+    const result = await loginService(validatedData);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Response
+    |--------------------------------------------------------------------------
+    */
+
+    res.status(200).json(result);
+  }
+);
