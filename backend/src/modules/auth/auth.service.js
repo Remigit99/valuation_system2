@@ -17,7 +17,7 @@ import {
 
 import { v7 as uuidv7 } from "uuid";
 
-import { createSession, getSession } from "./session.service.js";
+import { createSession, getSession, deleteSession } from "./session.service.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -350,5 +350,38 @@ export const refreshAccessTokenService = async (
   return {
     success: true,
     accessToken: newAccessToken,
+  };
+};
+
+
+/*
+|--------------------------------------------------------------------------
+| Logout Service
+|--------------------------------------------------------------------------
+*/
+
+export const logoutService = async (
+  refreshToken
+) => {
+  /*
+  |--------------------------------------------------------------------------
+  | Verify Refresh Token
+  |--------------------------------------------------------------------------
+  */
+
+  const decoded =
+    verifyRefreshToken(refreshToken);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Delete Redis Session
+  |--------------------------------------------------------------------------
+  */
+
+  await deleteSession(decoded.sessionId);
+
+  return {
+    success: true,
+    message: "Logged out successfully",
   };
 };

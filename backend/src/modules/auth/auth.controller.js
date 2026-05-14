@@ -8,7 +8,8 @@ import {
   signupService,
   verifySignupOTPService,
   loginService,
-  refreshAccessTokenService
+  refreshAccessTokenService,
+  logoutService
 } from "./auth.service.js";
 
 /*
@@ -136,6 +137,31 @@ export const refreshAccessTokenController =
       await refreshAccessTokenService(
         refreshToken
       );
+
+    res.status(200).json(result);
+  });
+
+
+  /*
+|--------------------------------------------------------------------------
+| Logout Controller
+|--------------------------------------------------------------------------
+*/
+
+export const logoutController =
+  asyncHandler(async (req, res) => {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      throw new AppError(
+        "Refresh token is required",
+        400
+      );
+    }
+
+    const result = await logoutService(
+      refreshToken
+    );
 
     res.status(200).json(result);
   });
