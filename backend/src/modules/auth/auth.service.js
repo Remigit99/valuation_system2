@@ -19,6 +19,8 @@ import { v7 as uuidv7 } from "uuid";
 
 import { createSession, getSession, deleteSession } from "./session.service.js";
 
+import { redisClient } from "../../config/redis.js";
+
 /*
 |--------------------------------------------------------------------------
 | Signup Service
@@ -385,3 +387,125 @@ export const logoutService = async (
     message: "Logged out successfully",
   };
 };
+
+
+/*
+|--------------------------------------------------------------------------
+| Request CRM Login OTP Service
+|--------------------------------------------------------------------------
+*/
+
+export const requestCRMLoginOTPService =
+  async (payload) => {
+    const { username, password } =
+      payload;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Normalize Username
+    |--------------------------------------------------------------------------
+    */
+
+    const normalizedUsername =
+      username.toLowerCase();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Find User
+    |--------------------------------------------------------------------------
+    */
+
+    const user = await User.findOne({
+      username: normalizedUsername,
+    }).select("+passwordHash");
+
+    if (!user) {
+      throw new AppError(
+        "Invalid credentials",
+        401
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Verify Role
+    |--------------------------------------------------------------------------
+    */
+
+    if (user.role !== "crm") {
+      throw new AppError(
+        "Unauthorized role",
+        403
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Verify Password
+    |--------------------------------------------------------------------------
+    */
+
+    const isPasswordValid =
+      await verifyPassword(
+        user.passwordHash,
+        password
+      );
+
+    if (!isPasswordValid) {
+      throw new AppError(
+        "Invalid credentials",
+        401
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Phone Verification Check
+    |--------------------------------------------------------------------------
+    */
+
+    if (!user.isPhoneVerified) {
+      throw new AppError(
+        "Phone number not verified",
+        403
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Generate Login Challenge
+    |--------------------------------------------------------------------------
+    */
+
+    const challengeId = uuidv4();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Store Challenge In Redis
+    |--------------------------------------------------------------------------
+    */
+
+    await redisClient.set(
+      `crm-login:${challengeId}`,
+      JSON.stringify({
+        userId: user._id,
+      }),
+      {
+        EX: 300,
+      }
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Send OTP
+    |--------------------------------------------------------------------------
+    */
+
+    await sendSignupOTP(user.phone);
+
+    return {
+      success: true,
+      message: "OTP sent successfully",
+      challengeId,
+    };
+  };

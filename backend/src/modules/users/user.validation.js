@@ -56,3 +56,26 @@ export const loginSchema = z.object({
     .string()
     .min(1),
 });
+
+
+export const requestCRMLoginOTPSchema =
+  z.object({
+    username: z
+      .string()
+      .min(3)
+      .max(30),
+
+    password: z
+      .string()
+      .min(1),
+  });
+
+
+  export const verifyCRMLoginOTPSchema =
+  z.object({
+    challengeId: z.string(),
+
+    otp: z
+      .string()
+      .length(6),
+  });
