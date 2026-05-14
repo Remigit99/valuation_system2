@@ -1,7 +1,12 @@
+import dns from "node:dns";
+
 import express from "express";
 import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+
+
+dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
 
 const app = express();
 
