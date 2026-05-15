@@ -1,13 +1,14 @@
 import crypto from "crypto";
+import AppError from "../../utils/errors/AppError.js";
+import * as OTPAuth from "otpauth";
+import QRCode from "qrcode";
 
 import { redisClient } from "../../config/redis.js";
 
-import AppError from "../../utils/errors/AppError.js";
-
 /*
-|--------------------------------------------------------------------------
+|--------------------
 | OTP Configuration
-|--------------------------------------------------------------------------
+|--------------------
 */
 
 const OTP_EXPIRATION_SECONDS = 300;
@@ -15,9 +16,9 @@ const OTP_EXPIRATION_SECONDS = 300;
 const OTP_RESEND_COOLDOWN_SECONDS = 60;
 
 /*
-|--------------------------------------------------------------------------
+|----------------------
 | Generate Numeric OTP
-|--------------------------------------------------------------------------
+|----------------------
 */
 
 const generateOTP = () => {
@@ -25,9 +26,9 @@ const generateOTP = () => {
 };
 
 /*
-|--------------------------------------------------------------------------
+|----------
 | Hash OTP
-|--------------------------------------------------------------------------
+|----------
 */
 
 const hashOTP = (otp) => {
@@ -35,16 +36,16 @@ const hashOTP = (otp) => {
 };
 
 /*
-|--------------------------------------------------------------------------
+|-----------------
 | Send Signup OTP
-|--------------------------------------------------------------------------
+|-----------------
 */
 
 export const sendSignupOTP = async (phone) => {
   /*
-  |--------------------------------------------------------------------------
+  |----------------
   | Cooldown Check
-  |--------------------------------------------------------------------------
+  |----------------
   */
 
   const cooldownKey = `otp:cooldown:${phone}`;
@@ -52,16 +53,13 @@ export const sendSignupOTP = async (phone) => {
   const existingCooldown = await redisClient.get(cooldownKey);
 
   if (existingCooldown) {
-    throw new AppError(
-      "Please wait before requesting another OTP",
-      429
-    );
+    throw new AppError("Please wait before requesting another OTP", 429);
   }
 
   /*
-  |--------------------------------------------------------------------------
+  |---------------
   | Generate OTP
-  |--------------------------------------------------------------------------
+  |---------------
   */
 
   const otp = generateOTP();
@@ -69,17 +67,17 @@ export const sendSignupOTP = async (phone) => {
   const hashedOTP = hashOTP(otp);
 
   /*
-  |--------------------------------------------------------------------------
+  |------------
   | Redis Keys
-  |--------------------------------------------------------------------------
+  |------------
   */
 
   const otpKey = `otp:signup:${phone}`;
 
   /*
-  |--------------------------------------------------------------------------
+  |----------------
   | Store OTP Hash
-  |--------------------------------------------------------------------------
+  |----------------
   */
 
   await redisClient.set(otpKey, hashedOTP, {
@@ -87,9 +85,9 @@ export const sendSignupOTP = async (phone) => {
   });
 
   /*
-  |--------------------------------------------------------------------------
+  |----------------
   | Store Cooldown
-  |--------------------------------------------------------------------------
+  |----------------
   */
 
   await redisClient.set(cooldownKey, "true", {
@@ -97,9 +95,9 @@ export const sendSignupOTP = async (phone) => {
   });
 
   /*
-  |--------------------------------------------------------------------------
+  |-----------------------
   | Send SMS (TEMPORARY)
-  |--------------------------------------------------------------------------
+  |-----------------------
   */
 
   console.log(`📱 OTP for ${phone}: ${otp}`);
@@ -111,19 +109,25 @@ export const sendSignupOTP = async (phone) => {
 };
 
 
+/*
+|-----------------
+| Verify Signup OTP
+|-----------------
+*/
+
 export const verifySignupOTP = async (phone, otp) => {
   /*
-  |--------------------------------------------------------------------------
+  |-----------
   | Redis Key
-  |--------------------------------------------------------------------------
+  |-----------
   */
 
   const otpKey = `otp:signup:${phone}`;
 
   /*
-  |--------------------------------------------------------------------------
+  |---------------------
   | Get Stored OTP Hash
-  |--------------------------------------------------------------------------
+  |---------------------
   */
 
   const storedOTPHash = await redisClient.get(otpKey);
@@ -133,9 +137,9 @@ export const verifySignupOTP = async (phone, otp) => {
   }
 
   /*
-  |--------------------------------------------------------------------------
+  |--------------
   | Compare OTP
-  |--------------------------------------------------------------------------
+  |--------------
   */
 
   const hashedOTP = hashOTP(otp);
@@ -145,12 +149,162 @@ export const verifySignupOTP = async (phone, otp) => {
   }
 
   /*
-  |--------------------------------------------------------------------------
+  |-------------------------------
   | Delete OTP After Verification
-  |--------------------------------------------------------------------------
+  |-------------------------------
   */
 
   await redisClient.del(otpKey);
 
   return true;
+};
+
+/*
+|---------------------
+| Generate TOTP Setup
+|---------------------
+*/
+
+export const generateTOTPSetup = async (user) => {
+  /*
+    |-----------------
+    | Generate Secret
+    |-----------------
+    */
+
+  const secret = new OTPAuth.Secret();
+
+  /*
+    |----------------------
+    | Create TOTP Instance
+    |----------------------
+    */
+
+  const totp = new OTPAuth.TOTP({
+    issuer: "Rems Fintech App",
+
+    label: user.username,
+
+    algorithm: "SHA1",
+
+    digits: 6,
+
+    period: 30,
+
+    secret,
+  });
+
+  /*
+    |------------------------
+    | Store Temporary Secret
+    |------------------------
+    */
+
+  await redisClient.set(
+    `totp-setup:${user._id}`,
+
+    secret.base32,
+
+    {
+      EX: 600,
+    },
+  );
+
+  /*
+    |------------------
+    | Generate QR Code
+    |------------------
+    */
+
+  const qrCode = await QRCode.toDataURL(totp.toString());
+
+  return {
+    success: true,
+
+    data: {
+      qrCode,
+    },
+  };
+};
+
+/*
+|-------------------
+| Verify TOTP Setup
+|-------------------
+*/
+
+export const verifyTOTPSetup = async ({ user, token }) => {
+  /*
+    |----------------------
+    | Get Temporary Secret
+    |----------------------
+    */
+
+  const tempSecret = await redisClient.get(`totp-setup:${user._id}`);
+
+  if (!tempSecret) {
+    throw new Error("TOTP setup session expired");
+  }
+
+  /*
+    |----------------------
+    | Create TOTP Instance
+    |----------------------
+    */
+
+  const totp = new OTPAuth.TOTP({
+    issuer: "Rems Fintech App",
+
+    label: user.username,
+
+    algorithm: "SHA1",
+
+    digits: 6,
+
+    period: 30,
+
+    secret: OTPAuth.Secret.fromBase32(tempSecret),
+  });
+
+  /*
+    |----------------
+    | Validate Token
+    |----------------
+    */
+
+  const delta = totp.validate({
+    token,
+
+    window: 1,
+  });
+
+  if (delta === null) {
+    throw new Error("Invalid TOTP code");
+  }
+
+  /*
+    |-------------
+    | Enable TOTP
+    |-------------
+    */
+
+  user.totpEnabled = true;
+
+  user.totpSecret = tempSecret;
+
+  await user.save();
+
+  /*
+    |-------------------------
+    | Delete Temporary Secret
+    |-------------------------
+    */
+
+  await redisClient.del(`totp-setup:${user._id}`);
+
+  return {
+    success: true,
+
+    message: "TOTP enabled successfully",
+  };
 };

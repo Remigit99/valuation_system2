@@ -6,9 +6,9 @@ const redisClient = createClient({
 });
 
 /*
-|--------------------------------------------------------------------------
+|-----------------------
 | Redis Event Listeners
-|--------------------------------------------------------------------------
+|-----------------------
 */
 
 redisClient.on("connect", () => {
@@ -28,9 +28,9 @@ redisClient.on("end", () => {
 });
 
 /*
-|--------------------------------------------------------------------------
+|---------------
 | Connect Redis
-|--------------------------------------------------------------------------
+|--------------
 */
 
 const connectRedis = async () => {
@@ -39,7 +39,6 @@ const connectRedis = async () => {
   } catch (error) {
     console.error("❌ Failed to connect to Redis");
     console.error(error.message);
-
     process.exit(1);
   }
 };
