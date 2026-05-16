@@ -18,6 +18,8 @@ import { v7 as uuidv7 } from "uuid";
 
 import { createSession, getSession, deleteSession } from "./session.service.js";
 
+import { createAuditLog } from "../audit/audit.service.js";
+
 import { redisClient } from "../../config/redis.js";
 
 
@@ -272,6 +274,64 @@ await createSession({
   user.lastLoginAt = new Date();
 
   await user.save();
+
+
+  /*
+    |------------------------------------
+    | Audit Log for failed login attempt
+    |------------------------------------
+    */
+  await createAuditLog({
+
+    action:"LOGIN",
+
+    status:"FAILED",
+
+    ipAddress,
+
+    userAgent,
+
+    fingerprint,
+
+    metadata:{
+        reason:"Invalid credentials",
+        username
+    }
+
+});
+
+throw new AppError(
+    "Invalid credentials",
+    401
+);
+
+/*
+    |------------------------------------
+    | Audit Log for successful login
+    |------------------------------------
+    */
+
+await createAuditLog({
+
+    userId:user._id,
+
+    action:"LOGIN",
+
+    status:"SUCCESS",
+
+    ipAddress,
+
+    userAgent,
+
+    fingerprint,
+
+    metadata:{
+        role:user.role
+    }
+
+});
+
+
 
   /*
   |----------
