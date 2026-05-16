@@ -109,13 +109,47 @@ export const loginController = asyncHandler(async (req, res) => {
 
   const validatedData = loginSchema.parse(req.body);
 
+   /*
+    |--------------------------
+    | Extract Device Metadata
+    |--------------------------
+    */
+
+  const metadata = {
+      userAgent: req.headers["user-agent"],
+
+      ipAddress:
+        req.ip ||
+
+        req.socket?.remoteAddress,
+
+      fingerprint:
+        req.body.fingerprint,
+
+      deviceName:
+        req.body.deviceName,
+    };
+
   /*
     |-------
     | Login
     |-------
     */
 
-  const result = await loginService(validatedData);
+const result = await loginService(validatedData, metadata);
+
+const safeStringify = (obj) => {
+  const seen = new Set();
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) return '[Circular]';
+      seen.add(value);
+    }
+    return value;
+  });
+};
+
+
 
   /*
     |----------

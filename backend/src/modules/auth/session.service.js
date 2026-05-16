@@ -6,8 +6,7 @@ import { redisClient } from "../../config/redis.js";
 |--------------------
 */
 
-const SESSION_EXPIRATION_SECONDS =
-  60 * 60 * 24 * 7;
+const SESSION_EXPIRATION_SECONDS = 60 * 60 * 24 * 7;
 
 /*
 |----------------
@@ -20,6 +19,9 @@ export const createSession = async ({
   userId,
   userAgent,
   ipAddress,
+  fingerprint,
+  deviceName,
+  trusted,
 }) => {
   const sessionKey = `session:${sessionId}`;
 
@@ -29,11 +31,14 @@ export const createSession = async ({
       userId,
       userAgent,
       ipAddress,
+      fingerprint,
+      deviceName,
+      trusted,
       createdAt: new Date(),
     }),
     {
       EX: SESSION_EXPIRATION_SECONDS,
-    }
+    },
   );
 };
 

@@ -13,6 +13,11 @@ import authRoutes from "./modules/auth/auth.routes.js";
 
 dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
 
+// Add this right at the top of your server.js / app.js
+
+
+
+
 const app = express();
 
 app.disable("x-powered-by");
@@ -35,12 +40,14 @@ app.use(helmet());
 |--------------------------------------------------------
 */
 
-app.use(
-  cors({
-    origin: "http://localhost:5173",
-    credentials: true,
-  })
-);
+// app.use(
+//   cors({
+//     origin: "http://localhost:5173",
+//     credentials: true,
+//   })
+// );
+
+app.use(cors({ origin: '*' }));
 
 /*
 |--------------------------
@@ -109,6 +116,8 @@ app.get(
     throw new AppError("Test error route", 400);
   })
 );
+
+
 
 app.use(AppError);
 app.use(asyncHandler);

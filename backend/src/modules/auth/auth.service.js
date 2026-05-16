@@ -157,7 +157,7 @@ export const verifySignupOTPService = async (payload) => {
 |---------------
 */
 
-export const loginService = async (payload) => {
+export const loginService = async (payload, metadata) => {
   const { username, password } = payload;
 
   /*
@@ -240,9 +240,10 @@ const sessionId = uuidv7();
 await createSession({
   sessionId,
   userId: user._id,
-
-  userAgent: "unknown",
-  ipAddress: "unknown",
+  userAgent: metadata.userAgent || "unknown",
+  ipAddress: metadata.ipAddress || "unknown",
+  fingerprint: metadata.fingerprint || "unknown",
+  deviceName: metadata.deviceName || "unknown",
 });
 
   /*
