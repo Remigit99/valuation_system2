@@ -11,7 +11,7 @@ import { verifyPassword } from "../../utils/password.js";
 import {
   generateAccessToken,
   generateRefreshToken,
-  verifyRefreshToken
+  verifyRefreshToken,
 } from "../../utils/token.js";
 
 import { v7 as uuidv7 } from "uuid";
@@ -22,7 +22,13 @@ import { createAuditLog } from "../audit/audit.service.js";
 
 import { redisClient } from "../../config/redis.js";
 
+import { createAttemptIdentifier } from "../../utils/security.js";
 
+import {
+  incrementLoginAttempts,
+  isLocked,
+  clearAttempts,
+} from "../security/security.service.js";
 
 /*
 |----------------
@@ -31,13 +37,7 @@ import { redisClient } from "../../config/redis.js";
 */
 
 export const signupService = async (payload) => {
-  const {
-    firstName,
-    lastName,
-    username,
-    phone,
-    password,
-  } = payload;
+  const { firstName, lastName, username, phone, password } = payload;
 
   /*
   |--------------------
@@ -106,7 +106,6 @@ export const signupService = async (payload) => {
   };
 };
 
-
 /*
 |---------------------------
 | Verify Signup OTP Service
@@ -152,7 +151,6 @@ export const verifySignupOTPService = async (payload) => {
   };
 };
 
-
 /*
 |---------------
 | Login Service
@@ -190,20 +188,41 @@ export const loginService = async (payload, metadata) => {
     throw new AppError("Invalid credentials", 401);
   }
 
+  const identifier = createAttemptIdentifier({
+    username,
+    ipAddress: metadata.ipAddress || "unknown",
+  });
+
+  const locked = await isLocked(identifier);
+
+  if (locked) {
+    await createAuditLog({
+      action: "LOGIN_BLOCKED",
+      status: "FAILED",
+      ipAddress: metadata.ipAddress || "unknown",
+      userAgent: metadata.userAgent || "unknown",
+      metadata: {
+        reason: "Too many attempts",
+      },
+    });
+
+    throw new AppError("Too many login attempts. Try again later.", 429);
+  }
+
   /*
   |-----------------
   | Verify Password
   |-----------------
   */
 
-  const isPasswordValid = await verifyPassword(
-    user.passwordHash,
-    password
-  );
+  const isPasswordValid = await verifyPassword(user.passwordHash, password);
 
   if (!isPasswordValid) {
+    await incrementLoginAttempts(identifier);
     throw new AppError("Invalid credentials", 401);
   }
+
+  await clearAttempts(identifier);
 
   /*
   |--------------------------
@@ -212,10 +231,7 @@ export const loginService = async (payload, metadata) => {
   */
 
   if (!user.isPhoneVerified) {
-    throw new AppError(
-      "Please verify your phone number",
-      403
-    );
+    throw new AppError("Please verify your phone number", 403);
   }
 
   /*
@@ -225,10 +241,7 @@ export const loginService = async (payload, metadata) => {
   */
 
   if (!user.isActive) {
-    throw new AppError(
-      "Account has been disabled",
-      403
-    );
+    throw new AppError("Account has been disabled", 403);
   }
 
   /*
@@ -237,16 +250,16 @@ export const loginService = async (payload, metadata) => {
 |-------------------
 */
 
-const sessionId = uuidv7();
+  const sessionId = uuidv7();
 
-await createSession({
-  sessionId,
-  userId: user._id,
-  userAgent: metadata.userAgent || "unknown",
-  ipAddress: metadata.ipAddress || "unknown",
-  fingerprint: metadata.fingerprint || "unknown",
-  deviceName: metadata.deviceName || "unknown",
-});
+  await createSession({
+    sessionId,
+    userId: user._id,
+    userAgent: metadata.userAgent || "unknown",
+    ipAddress: metadata.ipAddress || "unknown",
+    fingerprint: metadata.fingerprint || "unknown",
+    deviceName: metadata.deviceName || "unknown",
+  });
 
   /*
   |-----------------
@@ -275,63 +288,53 @@ await createSession({
 
   await user.save();
 
-
   /*
     |------------------------------------
     | Audit Log for failed login attempt
     |------------------------------------
     */
   await createAuditLog({
+    action: "LOGIN",
 
-    action:"LOGIN",
+    status: "FAILED",
 
-    status:"FAILED",
+    ipAddress: metadata.ipAddress || "unknown",
 
-    ipAddress,
+    userAgent: metadata.userAgent || "unknown",
 
-    userAgent,
+    fingerprint: metadata.fingerprint || "unknown",
 
-    fingerprint,
+    metadata: {
+      reason: "Invalid credentials",
+      username,
+    },
+  });
 
-    metadata:{
-        reason:"Invalid credentials",
-        username
-    }
+  throw new AppError("Invalid credentials", 401);
 
-});
-
-throw new AppError(
-    "Invalid credentials",
-    401
-);
-
-/*
+  /*
     |------------------------------------
     | Audit Log for successful login
     |------------------------------------
     */
 
-await createAuditLog({
+  await createAuditLog({
+    userId: user._id,
 
-    userId:user._id,
+    action: "LOGIN",
 
-    action:"LOGIN",
+    status: "SUCCESS",
 
-    status:"SUCCESS",
+    ipAddress: metadata.ipAddress || "unknown",
 
-    ipAddress,
+    userAgent: metadata.userAgent || "unknown",
 
-    userAgent,
+    fingerprint: metadata.fingerprint || "unknown",
 
-    fingerprint,
-
-    metadata:{
-        role:user.role
-    }
-
-});
-
-
+    metadata: {
+      role: user.role,
+    },
+  });
 
   /*
   |----------
@@ -358,24 +361,20 @@ await createAuditLog({
   };
 };
 
-
 /*
 |------------------------------
 | Refresh Access Token Service
 |------------------------------
 */
 
-export const refreshAccessTokenService = async (
-  refreshToken
-) => {
+export const refreshAccessTokenService = async (refreshToken) => {
   /*
   |----------------------
   | Verify Refresh Token
   |----------------------
   */
 
-  const decoded =
-    verifyRefreshToken(refreshToken);
+  const decoded = verifyRefreshToken(refreshToken);
 
   /*
   |---------------
@@ -383,15 +382,10 @@ export const refreshAccessTokenService = async (
   |---------------
   */
 
-  const session = await getSession(
-    decoded.sessionId
-  );
+  const session = await getSession(decoded.sessionId);
 
   if (!session) {
-    throw new AppError(
-      "Session expired or invalid",
-      401
-    );
+    throw new AppError("Session expired or invalid", 401);
   }
 
   /*
@@ -400,12 +394,11 @@ export const refreshAccessTokenService = async (
   |---------------------------
   */
 
-  const newAccessToken =
-    generateAccessToken({
-      userId: decoded.userId,
-      role: decoded.role,
-      sessionId: decoded.sessionId,
-    });
+  const newAccessToken = generateAccessToken({
+    userId: decoded.userId,
+    role: decoded.role,
+    sessionId: decoded.sessionId,
+  });
 
   return {
     success: true,
@@ -413,24 +406,20 @@ export const refreshAccessTokenService = async (
   };
 };
 
-
 /*
 |-----------------
 | Logout Service
 |-----------------
 */
 
-export const logoutService = async (
-  refreshToken
-) => {
+export const logoutService = async (refreshToken) => {
   /*
   |----------------------
   | Verify Refresh Token
   |----------------------
   */
 
-  const decoded =
-    verifyRefreshToken(refreshToken);
+  const decoded = verifyRefreshToken(refreshToken);
 
   /*
   |----------------------
@@ -446,273 +435,233 @@ export const logoutService = async (
   };
 };
 
-
 /*
 |-------------------------------
 | Request CRM Login OTP Service
 |-------------------------------
 */
 
-export const requestCRMLoginOTPService =
-  async (payload) => {
-    const { username, password } =
-      payload;
+export const requestCRMLoginOTPService = async (payload) => {
+  const { username, password } = payload;
 
-    /*
+  /*
     |--------------------
     | Normalize Username
     |--------------------
     */
 
-    const normalizedUsername =
-      username.toLowerCase();
+  const normalizedUsername = username.toLowerCase();
 
-    /*
+  /*
     |-----------
     | Find User
     |-----------
     */
 
-    const user = await User.findOne({
-      username: normalizedUsername,
-    }).select("+passwordHash");
+  const user = await User.findOne({
+    username: normalizedUsername,
+  }).select("+passwordHash");
 
-    if (!user) {
-      throw new AppError(
-        "Invalid credentials",
-        401
-      );
-    }
+  if (!user) {
+    throw new AppError("Invalid credentials", 401);
+  }
 
-    /*
+  /*
     |-------------
     | Verify Role
     |-------------
     */
 
-    if (user.role !== "crm") {
-      throw new AppError(
-        "Unauthorized role",
-        403
-      );
-    }
+  if (user.role !== "crm") {
+    throw new AppError("Unauthorized role", 403);
+  }
 
-    /*
+  /*
     |-----------------
     | Verify Password
     |-----------------
     */
 
-    const isPasswordValid =
-      await verifyPassword(
-        user.passwordHash,
-        password
-      );
+  const isPasswordValid = await verifyPassword(user.passwordHash, password);
 
-    if (!isPasswordValid) {
-      throw new AppError(
-        "Invalid credentials",
-        401
-      );
-    }
+  if (!isPasswordValid) {
+    throw new AppError("Invalid credentials", 401);
+  }
 
-    /*
+  /*
     |--------------------------
     | Phone Verification Check
     |--------------------------
     */
 
-    if (!user.isPhoneVerified) {
-      throw new AppError(
-        "Phone number not verified",
-        403
-      );
-    }
+  if (!user.isPhoneVerified) {
+    throw new AppError("Phone number not verified", 403);
+  }
 
-    /*
+  /*
     |--------------------------
     | Generate Login Challenge
     |--------------------------
     */
 
-    const challengeId = uuidv7();
+  const challengeId = uuidv7();
 
-    /*
+  /*
     |--------------------------
     | Store Challenge In Redis
     |--------------------------
     */
 
-    await redisClient.set(
-      `crm-login:${challengeId}`,
-      JSON.stringify({
-        userId: user._id,
-      }),
-      {
-        EX: 300,
-      }
-    );
+  await redisClient.set(
+    `crm-login:${challengeId}`,
+    JSON.stringify({
+      userId: user._id,
+    }),
+    {
+      EX: 300,
+    },
+  );
 
-    /*
+  /*
     |----------
     | Send OTP
     |----------
     */
 
-    await sendSignupOTP(user.phone);
+  await sendSignupOTP(user.phone);
 
-    return {
-      success: true,
-      message: "OTP sent successfully",
-      challengeId,
-    };
+  return {
+    success: true,
+    message: "OTP sent successfully",
+    challengeId,
   };
+};
 
-
-  /*
+/*
 |------------------------------
 | Verify CRM Login OTP Service
 |------------------------------
 */
 
-export const verifyCRMLoginOTPService =
-  async ({ challengeId, otp }) => {
-    /*
+export const verifyCRMLoginOTPService = async ({ challengeId, otp }) => {
+  /*
     |----------------------
     | Find Login Challenge
     |----------------------
     */
 
-    const challenge = await redisClient.get(
-      `crm-login:${challengeId}`
-    );
+  const challenge = await redisClient.get(`crm-login:${challengeId}`);
 
-    if (!challenge) {
-      throw new AppError(
-        "Login session expired or invalid",
-        401
-      );
-    }
+  if (!challenge) {
+    throw new AppError("Login session expired or invalid", 401);
+  }
 
-    /*
+  /*
     |-----------------
     | Parse Challenge
     |-----------------
     */
 
-    const parsedChallenge =
-      JSON.parse(challenge);
+  const parsedChallenge = JSON.parse(challenge);
 
-    /*
+  /*
     |-----------
     | Find User
     |-----------
     */
 
-    const user = await User.findById(
-      parsedChallenge.userId
-    );
+  const user = await User.findById(parsedChallenge.userId);
 
-    if (!user) {
-      throw new AppError(
-        "User not found",
-        404
-      );
-    }
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
 
-    /*
+  /*
     |------------
     | Verify OTP
     |------------
     */
 
-    await verifySignupOTP(
-      user.phone,
-      otp
-    );
+  await verifySignupOTP(user.phone, otp);
 
-    /*
+  /*
     |-------------------
     | Create Session ID
     |-------------------
     */
 
-    const sessionId = uuidv7();
+  const sessionId = uuidv7();
 
-    /*
+  /*
     |----------------------
     | Create Redis Session
     |----------------------
     */
 
-    await createSession({
-      sessionId,
-      userId: user._id,
-      userAgent: "unknown",
-      ipAddress: "unknown",
-    });
+  await createSession({
+    sessionId,
+    userId: user._id,
+    userAgent: "unknown",
+    ipAddress: "unknown",
+  });
 
-    /*
+  /*
     |-----------------
     | Generate Tokens
     |-----------------
     */
 
-    const accessToken =
-      generateAccessToken({
-        userId: user._id,
-        role: user.role,
-        sessionId,
-      });
+  const accessToken = generateAccessToken({
+    userId: user._id,
+    role: user.role,
+    sessionId,
+  });
 
-    const refreshToken =
-      generateRefreshToken({
-        userId: user._id,
-        role: user.role,
-        sessionId,
-      });
+  const refreshToken = generateRefreshToken({
+    userId: user._id,
+    role: user.role,
+    sessionId,
+  });
 
-    /*
+  /*
     |------------------------
     | Delete Login Challenge
     |------------------------
     */
 
-    await redisClient.del(
-      `crm-login:${challengeId}`
-    );
+  await redisClient.del(`crm-login:${challengeId}`);
 
-    /*
+  /*
     |-------------------
     | Update Last Login
     |-------------------
     */
 
-    user.lastLoginAt = new Date();
+  user.lastLoginAt = new Date();
 
-    await user.save();
+  await user.save();
 
-    /*
+  /*
     |----------
     | Response
     |----------
     */
 
-    return {
-      success: true,
-      message: "Login successful",
+  return {
+    success: true,
+    message: "Login successful",
 
-      data: {
-        accessToken,
-        refreshToken,
+    data: {
+      accessToken,
+      refreshToken,
 
-        user: {
-          id: user._id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          username: user.username,
-          role: user.role,
-        },
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        username: user.username,
+        role: user.role,
       },
-    };
+    },
   };
+};
