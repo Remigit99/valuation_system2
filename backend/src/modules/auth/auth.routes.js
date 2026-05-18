@@ -17,6 +17,10 @@ import {
   verifyTOTPSetupController,
 } from "./auth.controller.js";
 
+import { loginLimiter, otpLimiter } from "../../middleware/rateLimitMiddleware.js";
+
+
+
 const router = express.Router();
 
 /*
@@ -26,13 +30,13 @@ const router = express.Router();
 */
 
 // SIGNUP CONTROLLER
-router.post("/signup", signupController);
+router.post("/signup", otpLimiter, signupController);
 
 // VERIFY SIGNUP OTP CONTROLLER
-router.post("/verify-signup-otp", verifySignupOTPController);
+router.post("/verify-signup-otp", otpLimiter, verifySignupOTPController);
 
 // LOGIN CONTROLLER
-router.post("/login", loginController);
+router.post("/login", loginLimiter, loginController);
 
 // REFRESH ACCESS TOKEN CONTROLLER
 router.post("/refresh-access-token", refreshAccessTokenController);
@@ -41,10 +45,10 @@ router.post("/refresh-access-token", refreshAccessTokenController);
 router.post("/logout", logoutController);
 
 // VERIFY CRM LOGIN OTP CONTROLLER
-router.post("/verify-crm-login-otp", verifyCRMLoginOTPController);
+router.post("/verify-crm-login-otp", otpLimiter, verifyCRMLoginOTPController);
 
 // REQUEST CRM LOGIN OTP CONTROLLER
-router.post("/request-crm-login-otp", requestCRMLoginOTPController);
+router.post("/request-crm-login-otp", otpLimiter, requestCRMLoginOTPController);
 
 // GENERATE TOTP SETUP CONTROLLER
 router.post(

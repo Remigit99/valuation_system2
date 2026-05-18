@@ -10,6 +10,7 @@ import AppError from "./utils/errors/AppError.js";
 import asyncHandler from "./utils/errors/asyncHandler.js";
 
 import authRoutes from "./modules/auth/auth.routes.js";
+import { apiLimiter } from "./middleware/rateLimitMiddleware.js";
 
 dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
 
@@ -71,6 +72,14 @@ app.use(cookieParser());
 | - API checks
 |---------------------
 */
+
+
+/*---------------------------------------------
+| API Rate Limiting Middleware
+|----------------------------------------------
+*/
+
+app.use(apiLimiter);
 
 
 /*---------------------------------------------
