@@ -30,6 +30,13 @@ import {
   clearAttempts,
 } from "../security/security.service.js";
 
+import {
+  checkAccountLock,
+  handleFailedLogin,
+  resetLoginState,
+  applyProgressiveDelay,
+} from "../security/accountSecurity.service.js";
+
 /*
 |----------------
 | Signup Service
@@ -188,6 +195,15 @@ export const loginService = async (payload, metadata) => {
     throw new AppError("Invalid credentials", 401);
   }
 
+  const lockStatus = checkAccountLock(user);
+
+  if (lockStatus.locked) {
+    throw new AppError(
+      `Account locked. Try again in ${lockStatus.minutesRemaining} minutes`,
+      403,
+    );
+  }
+
   const identifier = createAttemptIdentifier({
     username,
     ipAddress: metadata.ipAddress || "unknown",
@@ -219,6 +235,10 @@ export const loginService = async (payload, metadata) => {
 
   if (!isPasswordValid) {
     await incrementLoginAttempts(identifier);
+    await applyProgressiveDelay(user.failedLoginAttempts);
+
+    await handleFailedLogin(user);
+
     throw new AppError("Invalid credentials", 401);
   }
 
@@ -285,6 +305,8 @@ export const loginService = async (payload, metadata) => {
   */
 
   user.lastLoginAt = new Date();
+
+  await resetLoginState(user);
 
   await user.save();
 

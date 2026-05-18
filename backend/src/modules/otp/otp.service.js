@@ -4,6 +4,7 @@ import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 
 import { redisClient } from "../../config/redis.js";
+import { checkOTPRequestLimit } from "../security/otpSecurity.service.js";
 
 /*
 |--------------------
@@ -55,6 +56,8 @@ export const sendSignupOTP = async (phone) => {
   if (existingCooldown) {
     throw new AppError("Please wait before requesting another OTP", 429);
   }
+
+  // await checkOTPRequestLimit(phone);
 
   /*
   |---------------
